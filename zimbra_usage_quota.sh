@@ -1,19 +1,15 @@
 #!/bin/bash
-output="/tmp/accountusage"
-domain="tss.ru"
-SendTo="it@tss.ru"
 
-rm -f $output
-touch $output
+# Получение списка аккаунтов и их квоты
+quota_info=$(zmprov gqu `zmhostname`)
 
-server=`zmhostname`
-/opt/zimbra/bin/zmprov gqu $server|grep $domain|awk {'print $1" "$3" "$2'}|sort|while read line
-do
-usage=`echo $line|cut -f2 -d " "`
-quota=`echo $line|cut -f3 -d " "`
-user=`echo $line|cut -f1 -d " "`
-status=`/opt/zimbra/bin/zmprov ga $user | grep  ^zimbraAccountStatus | cut -f2 -d " "`
-echo "$user `expr $usage / 1024 / 1024`Mb `expr $quota / 1024 / 1024`Mb ($status account)" >> $output
+# Получение списка аккаунтов и их статуса
+account_info=$(zmaccts)
+
+# Объединение данных по общему полю (адресу почтового ящика)
+echo "$quota_info" | while read -r line; do
+    email=$(echo "$line" | awk '{print $1}')
+    quota=$(echo "$line" | awk '{printf "%s %.0fMB %.0fMB\n", $1, ($3 / (1024 * 1024)), ($2 / (1024 * 1024))}')
+    info=$(echo "$account_info" | awk -v email="$email" '$1 == email {print $2, $3, $4}')
+    echo "$email - Quota: $quota, Status: $info"
 done
-
-cat $output | mail @SendTo -s"Mailbox Usages for $domain"
